@@ -100,10 +100,6 @@ fi
 # disk image
 msg "creating disk loop device"
 dd if=/dev/zero of=$DISK_IMG bs=1M count=$DISK_SIZE
-if [ -n "$UBOOT_BIN" ] && [ -n "$UBOOT_SEEK" ]; then
-    msg "copying u-boot image"
-    dd conv=notrunc if=$UBOOT_BIN of=$DISK_IMG bs=512 seek=$UBOOT_SEEK
-fi
 loop_dev=$(losetup -f)
 losetup -f $DISK_IMG
 
@@ -111,7 +107,7 @@ msg "partitioning disk"
 set +e
 BOOT_OFFS=${BOOT_OFFS:-2048}
 ROOT_OFFS=$(($BOOT_OFFS + $BOOT_SIZE * 2048))
-fdisk -u=sectors $loop_dev <<END
+fdisk $loop_dev <<END
 o
 n
 p
@@ -134,35 +130,20 @@ END
 set -e
 sync
 
-msg "reading partition offsets"
-boot_offs=$(fdisk -u=sectors -l $loop_dev | grep -E 'loop[[:digit:]]p1' | tr -d '*' | tr -s ' ' | cut -d ' ' -f 2)
-root_offs=$(fdisk -u=sectors -l $loop_dev | grep -E 'loop[[:digit:]]p2' | tr -d '*' | tr -s ' ' | cut -d ' ' -f 2)
-
 msg "destroying disk loop device"
 losetup -d $loop_dev
 
-msg "creating boot loop device"
-loop_dev=$(losetup -f)
-losetup -f -o $(($boot_offs * 512)) $DISK_IMG
+if [ -n "$UBOOT_BIN" ] && [ -n "$UBOOT_SEEK" ]; then
+    msg "copying u-boot image"
+    dd conv=notrunc if=$UBOOT_BIN of=$DISK_IMG bs=512 seek=$UBOOT_SEEK
+fi
 
 msg "copying boot image"
-dd if=$BOOT_IMG of=$loop_dev
-sync
-
-msg "destroying boot loop device"
-losetup -d $loop_dev
-
-msg "creating root loop device"
-loop_dev=$(losetup -f)
-losetup -f -o $(($root_offs * 512)) $DISK_IMG
+dd conv=notrunc if=$BOOT_IMG of=$DISK_IMG bs=512 seek=$BOOT_OFFS
 sync
 
 msg "copying root image"
-dd if=$ROOT_IMG of=$loop_dev
-sync
-
-msg "destroying root loop device"
-losetup -d $loop_dev
+dd conv=notrunc if=$ROOT_IMG of=$DISK_IMG bs=512 seek=$ROOT_OFFS
 sync
 
 mv $DISK_IMG $(dirname $DISK_IMG)/motioneyeos-$BOARD.img
