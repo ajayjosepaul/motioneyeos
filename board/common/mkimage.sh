@@ -109,17 +109,19 @@ losetup -f $DISK_IMG
 
 msg "partitioning disk"
 set +e
+BOOT_OFFS=${BOOT_OFFS:-2048}
+ROOT_OFFS=$(($BOOT_OFFS + $BOOT_SIZE * 2048))
 fdisk -u=sectors $loop_dev <<END
 o
 n
 p
 1
-
+${BOOT_OFFS}
 +${BOOT_SIZE}M
 n
 p
 2
-
+${ROOT_OFFS}
 +${ROOT_SIZE}M
 
 t
